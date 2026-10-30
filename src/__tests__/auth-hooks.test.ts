@@ -412,7 +412,7 @@ describe('NetSapiensAuthProvider auth hooks & pages', () => {
     await provider.handleTokenLogin(
       { body: { auth_state: authState }, headers: {} } as unknown as Request,
       loginRes as unknown as Response,
-      'https://edge.phoneware.cloud',
+      'https://api.pressone.net',
       'ns-office-manager-token',
     );
 

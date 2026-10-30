@@ -1,0 +1,105 @@
+name: Sync upstream
+
+# Merges phoneware/netsapiens-mcp main into this fork's main once a week.
+# Clean merge + passing tests -> pushed to main.
+# Merge conflict or failing tests -> nothing is pushed; an issue is opened.
+
+on:
+  schedule:
+    - cron: '0 13 * * 1' # Mondays 13:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  UPSTREAM_REPO: phoneware/netsapiens-mcp
+  UPSTREAM_BRANCH: main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          # GITHUB_TOKEN cannot push changes to .github/workflows/. Add a
+          # SYNC_TOKEN secret (fine-grained PAT: Contents + Workflows write)
+          # so upstream workflow changes can be pushed too.
+          token: ${{ secrets.SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Merge upstream
+        id: merge
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch upstream "$UPSTREAM_BRANCH"
+          if git merge-base --is-ancestor "upstream/${UPSTREAM_BRANCH}" HEAD; then
+            echo "Already up to date with upstream."
+            echo "status=up-to-date" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git merge --no-edit "upstream/${UPSTREAM_BRANCH}"; then
+            echo "status=merged" >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only --diff-filter=U > /tmp/conflicts.txt
+            git merge --abort
+            echo "status=conflict" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.merge.outputs.status == 'merged'
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install, test, build
+        id: test
+        if: steps.merge.outputs.status == 'merged'
+        run: |
+          set -o pipefail
+          { npm ci && npm test && npm run build; } 2>&1 | tee /tmp/test.log
+
+      - name: Push to main
+        id: push
+        if: steps.merge.outputs.status == 'merged' && steps.test.outcome == 'success'
+        run: git push origin HEAD:main
+
+      - name: Open an issue if the sync needs a person
+        if: always() && (steps.merge.outputs.status == 'conflict' || steps.test.outcome == 'failure' || steps.push.outcome == 'failure' || steps.merge.outcome == 'failure')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          STATUS: ${{ steps.merge.outputs.status }}
+          TEST: ${{ steps.test.outcome }}
+          PUSH: ${{ steps.push.outcome }}
+        run: |
+          if [ "$STATUS" = "conflict" ]; then
+            reason="The upstream changes conflict with PressONE changes in these files:"
+            details="$(sed 's/^/- /' /tmp/conflicts.txt)"
+          elif [ "$TEST" = "failure" ]; then
+            reason="Upstream merged cleanly, but install, tests, or build failed. Last lines of output:"
+            details="$(printf '```\n%s\n```' "$(tail -n 60 /tmp/test.log)")"
+          elif [ "$PUSH" = "failure" ]; then
+            reason="Merge and tests passed, but the push to main was refused. If upstream changed files in .github/workflows/, add a SYNC_TOKEN secret (see sync-upstream.yml)."
+            details=""
+          else
+            reason="The sync job failed before merging."
+            details=""
+          fi
+          title="Upstream sync needs attention"
+          body="$(printf '%s\n\n%s\n\nNothing was pushed to main. Run: %s\n\nTo fix by hand:\n```\ngit checkout main && git pull\ngit fetch upstream && git merge upstream/main\n# resolve, run npm test, then push\n```' "$reason" "$details" "$RUN_URL")"
+          existing="$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
