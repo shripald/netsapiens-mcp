@@ -16,7 +16,7 @@ import { getAllToolDefinitions, registerAllTools } from './tools/index.js';
 
 // Configuration - these would typically come from environment variables
 export const loadConfig = (): MCPServerConfig => {
-  const apiUrl = process.env.NETSAPIENS_API_URL || 'https://edge.phoneware.cloud';
+  const apiUrl = process.env.NETSAPIENS_API_URL || 'https://api.pressone.net';
   const transport = process.env.MCP_TRANSPORT || 'stdio';
 
   // In HTTP mode, per-user auth is handled by the browser login flow.

@@ -3,7 +3,7 @@
  *
  * Defines the NetSapiens API hosts that this MCP server is permitted to target.
  * Platforms come from an operator allowlist (NETSAPIENS_PLATFORMS or MCP_PLATFORMS).
- * Phoneware Edge is ALWAYS present and cannot be omitted. Unknown hosts are
+ * The PressONE platform (NETSAPIENS_API_URL) is ALWAYS present. Unknown hosts are
  * refused before any network request is issued, preventing SSRF.
  */
 
@@ -14,13 +14,11 @@ export interface NetSapiensPlatform {
 }
 
 /** Default Edge URL fallback if not set in environment. */
-export const DEFAULT_EDGE_API_URL = 'https://edge.phoneware.cloud';
+export const DEFAULT_EDGE_API_URL = 'https://api.pressone.net';
 
-/** Known partner NetSapiens hosts discovered in phoneware topology. */
+/** Default platform: PressONE, whose URL is overridden by NETSAPIENS_API_URL. */
 export const DEFAULT_PLATFORMS: NetSapiensPlatform[] = [
- { id: 'edge', label: 'Phoneware Edge', apiUrl: 'https://edge.phoneware.cloud' },
- { id: 'viirtue', label: 'Viirtue', apiUrl: 'https://vps.phoneware.us' },
- { id: 'mcu', label: 'MCU', apiUrl: 'https://mars.phoneware.cloud' },
+ { id: 'pressone', label: 'PressONE', apiUrl: 'https://api.pressone.net' },
 ];
 
 /**
@@ -47,9 +45,9 @@ export function parsePlatformsConfig(raw?: string): NetSapiensPlatform[] {
  const edgeApiUrl = normalizePlatformUrl(process.env.NETSAPIENS_API_URL || DEFAULT_EDGE_API_URL);
 
  if (!raw || !raw.trim()) {
-  // Return default platforms, ensuring Edge uses the configured NETSAPIENS_API_URL
+  // Return default platforms, ensuring PressONE uses the configured NETSAPIENS_API_URL
   return DEFAULT_PLATFORMS.map((p) =>
-   p.id === 'edge' ? { ...p, apiUrl: edgeApiUrl } : { ...p, apiUrl: normalizePlatformUrl(p.apiUrl) }
+   p.id === 'pressone' ? { ...p, apiUrl: edgeApiUrl } : { ...p, apiUrl: normalizePlatformUrl(p.apiUrl) }
   );
  }
 
@@ -98,10 +96,10 @@ export function parsePlatformsConfig(raw?: string): NetSapiensPlatform[] {
   }
  }
 
- // Edge must ALWAYS be present
+ // PressONE (NETSAPIENS_API_URL) must ALWAYS be present
  const hasEdge = platforms.some((p) => {
   try {
-   return normalizePlatformUrl(p.apiUrl) === edgeApiUrl || p.id === 'edge';
+   return normalizePlatformUrl(p.apiUrl) === edgeApiUrl;
   } catch {
    return false;
   }
@@ -109,8 +107,8 @@ export function parsePlatformsConfig(raw?: string): NetSapiensPlatform[] {
 
  if (!hasEdge) {
   platforms.unshift({
-   id: 'edge',
-   label: 'Phoneware Edge',
+   id: 'pressone',
+   label: 'PressONE',
    apiUrl: edgeApiUrl,
   });
  }

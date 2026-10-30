@@ -182,7 +182,7 @@ describe('loadConfig()', () => {
 
     const config = loadConfig();
 
-    expect(config.netsapiens.apiUrl).toBe('https://edge.phoneware.cloud');
+    expect(config.netsapiens.apiUrl).toBe('https://api.pressone.net');
   });
 
   it('uses custom API URL from NETSAPIENS_API_URL', () => {

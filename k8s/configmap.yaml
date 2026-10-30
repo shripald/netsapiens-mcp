@@ -4,7 +4,7 @@ metadata:
   name: netsapiens-mcp
   namespace: netsapiens-mcp
 data:
-  NETSAPIENS_API_URL: "https://edge.phoneware.cloud"
+  NETSAPIENS_API_URL: "https://api.pressone.net"
   MCP_TRANSPORT: "http"
   MCP_PORT: "3000"
   MCP_BASE_URL: "https://mcp.yourdomain.com"

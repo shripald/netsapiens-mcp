@@ -61,6 +61,7 @@ describe('NetSapiens Token Sign-In', () => {
   createdClients = [];
   delete process.env.NETSAPIENS_PLATFORMS;
   delete process.env.MCP_PLATFORMS;
+  delete process.env.NETSAPIENS_API_URL;
 
   mockedAxios.create = vi.fn((cfg?: { baseURL?: string }) => {
    const client = {
@@ -82,24 +83,22 @@ describe('NetSapiens Token Sign-In', () => {
  });
 
  describe('Platform allowlist', () => {
-  it('always includes Phoneware Edge by default', () => {
+  it('defaults to a single PressONE platform', () => {
    const platforms = getAllowedPlatforms();
-   expect(platforms.some((p) => p.apiUrl === 'https://edge.phoneware.cloud')).toBe(true);
-   expect(platforms.some((p) => p.apiUrl === 'https://vps.phoneware.us')).toBe(true);
-   expect(platforms.some((p) => p.apiUrl === 'https://mars.phoneware.cloud')).toBe(true);
+   expect(platforms).toEqual([{ id: 'pressone', label: 'PressONE', apiUrl: 'https://api.pressone.net' }]);
   });
 
-  it('injects Edge even when operator allowlist omits it', () => {
+  it('injects PressONE even when operator allowlist omits it', () => {
    const parsed = parsePlatformsConfig('Custom=https://custom.example.com');
-   expect(parsed.some((p) => p.apiUrl === 'https://edge.phoneware.cloud')).toBe(true);
+   expect(parsed.some((p) => p.apiUrl === 'https://api.pressone.net')).toBe(true);
    expect(parsed.some((p) => p.apiUrl === 'https://custom.example.com')).toBe(true);
   });
 
   it('refuses unknown hosts before making any network request (SSRF check)', () => {
    expect(isPlatformAllowed('https://evil.attacker.com')).toBe(false);
    expect(isPlatformAllowed('http://169.254.169.254/latest/meta-data')).toBe(false);
-   expect(isPlatformAllowed('https://edge.phoneware.cloud')).toBe(true);
-   expect(isPlatformAllowed('https://vps.phoneware.us')).toBe(true);
+   expect(isPlatformAllowed('https://api.pressone.net')).toBe(true);
+   expect(isPlatformAllowed('https://vps.phoneware.us')).toBe(false);
   });
  });
 
@@ -133,8 +132,8 @@ describe('NetSapiens Token Sign-In', () => {
    expect(auth.text).toContain('name="platform"');
    expect(auth.text).toContain('name="token"');
    expect(auth.text).toContain('https://edge.phoneware.cloud');
-   expect(auth.text).toContain('https://vps.phoneware.us');
-   expect(auth.text).toContain('https://mars.phoneware.cloud');
+   expect(auth.text).not.toContain('https://vps.phoneware.us');
+   expect(auth.text).not.toContain('https://mars.phoneware.cloud');
   });
  });
 
@@ -175,6 +174,7 @@ describe('NetSapiens Token Sign-In', () => {
   });
 
   it('authenticates user token via /domains/~/users/~ and issues code', async () => {
+   process.env.NETSAPIENS_PLATFORMS = 'Viirtue=https://vps.phoneware.us';
    const { app } = await importApp();
    const verifier = 'my-token-verifier-123456789012345678901234';
    const reg = await request(app)
@@ -351,6 +351,7 @@ describe('NetSapiens Token Sign-In', () => {
 
  describe('Session Host Routing', () => {
   it('routes API calls to the authenticated platform host, not Edge default', async () => {
+   process.env.NETSAPIENS_PLATFORMS = 'MCU=https://mars.phoneware.cloud';
    const { app } = await importApp();
    const verifier = 'routing-verifier-12345678901234567890';
    const reg = await request(app)
